@@ -23,10 +23,8 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.gson.Gson;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import java.util.Calendar;
 
 public class LiveTrackingService extends Service {
 
@@ -121,8 +119,11 @@ public class LiveTrackingService extends Service {
             fusedLocationProviderClient.removeLocationUpdates(locationCallback);
             stopSelf();
             LiveTrackingService.this.stopForeground(true);
+            SharedPref.locationUpdates(LiveTrackingService.this, false);
+
         } catch (SecurityException e) {
             e.printStackTrace();
+            SharedPref.locationUpdates(LiveTrackingService.this, true);
         }
     }
 
@@ -132,7 +133,6 @@ public class LiveTrackingService extends Service {
         locationRequest.setMaxWaitTime(LIVE_TRACKING_INTERVAL);
         locationRequest.setFastestInterval(LIVE_TRACKING_INTERVAL);
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-//        locationRequest.setSmallestDisplacement(5f);
 
         requestLocationUpdates();
     }
@@ -162,10 +162,14 @@ public class LiveTrackingService extends Service {
 
     public void requestLocationUpdates() {
         try {
-            if (fusedLocationProviderClient != null)
+            SharedPref.locationUpdates(LiveTrackingService.this, true);
+            if (fusedLocationProviderClient != null) {
+                SharedPref.setTripStart(LiveTrackingService.this, String.valueOf(Calendar.getInstance().getTime()), true);
                 fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
+            }
         } catch (SecurityException e) {
             e.printStackTrace();
+            SharedPref.locationUpdates(LiveTrackingService.this, false);
         }
     }
 
@@ -197,16 +201,9 @@ public class LiveTrackingService extends Service {
 
         if (location != null) {
             Locations locations = new Locations(String.valueOf(location.getTime()), location.getLatitude(), location.getLongitude(), location.getAccuracy());
-//            DBHelper dbHelper = new DBHelper(LiveTrackingService.this);
             try {
-                Gson gson = new Gson();
-                String jsonString = gson.toJson(locations);
-                JSONObject request = new JSONObject(jsonString);
-
-//                JSONObject jsonObject = new JSONObject(String.valueOf(location.getTime()) + location.getLatitude() + location.getLongitude() + location.getAccuracy());
-                Log.e("JSON", "NKDNKNJKN " + request);
-                dbHelper.insert(request);
-            } catch (JSONException e) {
+                dbHelper.addLocation(locations);
+            } catch (Exception e) {
                 e.printStackTrace();
                 Log.e("JSON", "JSONException " + e);
             }

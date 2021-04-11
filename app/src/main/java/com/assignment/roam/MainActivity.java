@@ -1,6 +1,7 @@
 package com.assignment.roam;
 
 import android.Manifest;
+import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -13,24 +14,32 @@ import android.os.IBinder;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.util.Calendar;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private static final int RC_LOCATION_PERMISSION = 1;
+
     private Button btnStartTrip;
     private Button btnEndTrip;
-    private DBHelper dbHelper;
+    private TextView textView;
 
-    private LiveTrackingService liveTrackingService;
+    private DBHelper dbHelper;
+    private static LiveTrackingService liveTrackingService;
     private boolean serviceBound;
+    private int tripId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,23 +48,59 @@ public class MainActivity extends AppCompatActivity {
 
         Button btnStartTrip = findViewById(R.id.btnStartTrip);
         Button btnEndTrip = findViewById(R.id.btnEndTrip);
+        textView = findViewById(R.id.textView);
 
         dbHelper = new DBHelper(MainActivity.this);
 
         btnStartTrip.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+
                 startTrackingTrip();
+
             }
         });
 
         btnEndTrip.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                stopTrackingTrip();
+                try {
+                    if (SharedPref.getLocationUpdates(MainActivity.this)) {
+                        stopTrackingTrip();
+                        SharedPref.setTripStart(MainActivity.this, String.valueOf(Calendar.getInstance().getTime()), false);
+
+                        String startTime = SharedPref.getStartTime(MainActivity.this);
+                        String endTime = SharedPref.getEndTime(MainActivity.this);
+                        List<Locations> locations = dbHelper.getLocations();
+
+                        if (startTime != null && endTime != null && locations.size() > 0) {
+
+                            tripId = tripId + 1;
+                            JSONObject query_string = new JSONObject();
+                            JSONArray jsonArray = new JSONArray();
+                            query_string.put("trip_id", tripId);
+                            query_string.put("start_time", startTime);
+                            query_string.put("end_time", endTime);
+
+                            for (Locations locations1 : locations) {
+                                JSONObject jsonObject = new JSONObject();
+                                jsonObject.put("latitude", locations1.getLatitude());
+                                jsonObject.put("logitude", locations1.getLongitude());
+                                jsonObject.put("timestamp", locations1.getTimestamp());
+                                jsonObject.put("accuracy", locations1.getAccuracy());
+                                jsonArray.put(jsonObject);
+                            }
+                            query_string.put("locations", jsonArray);
+
+                            textView.setText(query_string.toString());
+                            dbHelper.deleteAllLocations();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e("exception", "bhbhb " + e);
+                }
             }
         });
-
     }
 
     private void startTrackingTrip() {
@@ -63,13 +108,10 @@ public class MainActivity extends AppCompatActivity {
         if (checkLocationPermission() && isGpsEnabled()) {
             bindService(new Intent(MainActivity.this, LiveTrackingService.class),
                     serviceConnection, Context.BIND_AUTO_CREATE);
-
-            dbHelper.addStartTime(String.valueOf(Calendar.getInstance().getTime()), true);
-
         }
     }
 
-    private final ServiceConnection serviceConnection = new ServiceConnection() {
+    private ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
             Log.e(TAG, "onServiceConnected");
@@ -79,7 +121,6 @@ public class MainActivity extends AppCompatActivity {
             serviceBound = true;
 
             Intent intent = new Intent(MainActivity.this, LiveTrackingService.class);
-//            intent.putExtra(Trip.TRIP_ID, mTripId);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 startForegroundService(intent);
@@ -90,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-            Log.i(TAG, "onServiceDisconnected");
+            Log.e(TAG, "onServiceDisconnected");
 
             liveTrackingService = null;
             serviceBound = false;
@@ -98,6 +139,10 @@ public class MainActivity extends AppCompatActivity {
     };
 
     private void stopTrackingTrip() {
+        Log.e("liveTrackingService ", "stop " + liveTrackingService);
+        Log.e("serviceConnection ", "stop " + serviceConnection);
+        Log.e("serviceBound ", "stop " + serviceBound);
+
         if (liveTrackingService != null) {
             liveTrackingService.removeLocationUpdate();
         }
@@ -107,7 +152,6 @@ public class MainActivity extends AppCompatActivity {
             serviceBound = false;
         }
 
-        dbHelper.addStartTime(String.valueOf(Calendar.getInstance().getTime()), false);
     }
 
     private boolean checkLocationPermission() {
@@ -147,15 +191,20 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        switch (requestCode) {
-            case RC_LOCATION_PERMISSION:
-//                if (resultCode == RESULT_OK) {
-                bindService(new Intent(MainActivity.this, LiveTrackingService.class),
-                        serviceConnection, Context.BIND_AUTO_CREATE);
+//        switch (requestCode) {
+//            case RC_LOCATION_PERMISSION:
+//                bindService(new Intent(MainActivity.this, LiveTrackingService.class),
+//                        serviceConnection, Context.BIND_AUTO_CREATE);
+//                break;
+//        }
+    }
 
-                dbHelper.addStartTime(String.valueOf(Calendar.getInstance().getTime()), true);
-//                }
-                break;
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (serviceBound && serviceConnection != null) {
+            unbindService(serviceConnection);
+            serviceBound = false;
         }
     }
 }

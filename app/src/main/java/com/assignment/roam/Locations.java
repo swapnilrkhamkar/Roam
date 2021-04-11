@@ -14,6 +14,9 @@ public class Locations {
         this.accuracy = accuracy;
     }
 
+    public Locations() {
+    }
+
     public String getTimestamp() {
         return timestamp;
     }

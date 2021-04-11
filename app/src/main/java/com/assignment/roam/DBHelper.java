@@ -7,49 +7,50 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.provider.BaseColumns;
 
-import org.json.JSONObject;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
 
-import static com.assignment.roam.DBHelper.DBHelperItem.COLUMN_NAME_LOCATIONS;
-import static com.assignment.roam.DBHelper.DBHelperItem.TABLE_NAME;
+import static com.assignment.roam.DBHelper.DBHelperItem.TABLE_NAME_LOC;
 
 public class DBHelper extends SQLiteOpenHelper {
+
     private Context context;
 
     private static final String LOG_TAG = "DBHelper";
-
     public static final String DATABASE_NAME = "location.db";
     private static final int DATABASE_VERSION = 1;
 
     public static abstract class DBHelperItem implements BaseColumns {
-        public static final String TABLE_NAME = "location";
+        public static final String TABLE_NAME_LOC = "location";
 
-        //        public static final String COLUMN_NAME_TRIP_ID = "tripId";
-        public static final String COLUMN_NAME_START_TIME = "start_time";
-        public static final String COLUMN_NAME_END_TIME = "end_time";
-        public static final String COLUMN_NAME_LOCATIONS = "locations";
-
-
+        public static final String COLUMN_NAME_LOC_LAT = "latitude";
+        public static final String COLUMN_NAME_LOC_LONG = "longitude";
+        public static final String COLUMN_NAME_LOC_TIMESTAMP = "timestamp";
+        public static final String COLUMN_NAME_LOC_ACCURACY = "accuracy";
     }
 
     private static final String TEXT_TYPE = " TEXT";
     private static final String COMMA_SEP = ",";
-    private static final String SQL_CREATE_ENTRIES =
-            "CREATE TABLE " + TABLE_NAME + " (" +
-                    DBHelperItem._ID + " INTEGER PRIMARY KEY" + COMMA_SEP +
-                    DBHelperItem.COLUMN_NAME_START_TIME + TEXT_TYPE + COMMA_SEP +
-                    DBHelperItem.COLUMN_NAME_END_TIME + TEXT_TYPE + COMMA_SEP +
-                    COLUMN_NAME_LOCATIONS + TEXT_TYPE + ")";
 
-    private static final String SQL_DELETE_ENTRIES = "DROP TABLE IF EXISTS " + TABLE_NAME;
+    private static final String SQL_CREATE_ENTRIES_LOC =
+            "CREATE TABLE " + TABLE_NAME_LOC + " (" +
+                    DBHelperItem._ID + " INTEGER PRIMARY KEY" + COMMA_SEP +
+                    DBHelperItem.COLUMN_NAME_LOC_LAT + TEXT_TYPE + COMMA_SEP +
+                    DBHelperItem.COLUMN_NAME_LOC_LONG + TEXT_TYPE + COMMA_SEP +
+                    DBHelperItem.COLUMN_NAME_LOC_TIMESTAMP + TEXT_TYPE + COMMA_SEP +
+                    DBHelperItem.COLUMN_NAME_LOC_ACCURACY + TEXT_TYPE + ")";
+
+    private static final String SQL_DELETE_ENTRIES = "DROP TABLE IF EXISTS " + TABLE_NAME_LOC;
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        db.execSQL(SQL_CREATE_ENTRIES);
+        db.execSQL(SQL_CREATE_ENTRIES_LOC);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_NAME);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_NAME_LOC);
         onCreate(db);
     }
 
@@ -58,52 +59,43 @@ public class DBHelper extends SQLiteOpenHelper {
         this.context = context;
     }
 
-    public Trip getTrip() {
+    public List<Locations> getLocations() {
+        List<Locations> locations = new ArrayList<>();
         SQLiteDatabase db = getReadableDatabase();
+        Locations item = new Locations();
         String[] projection = {
                 DBHelperItem._ID,
-                DBHelperItem.COLUMN_NAME_START_TIME,
-                DBHelperItem.COLUMN_NAME_END_TIME,
-                COLUMN_NAME_LOCATIONS,
-
+                DBHelperItem.COLUMN_NAME_LOC_LAT,
+                DBHelperItem.COLUMN_NAME_LOC_LONG,
+                DBHelperItem.COLUMN_NAME_LOC_TIMESTAMP,
+                DBHelperItem.COLUMN_NAME_LOC_ACCURACY
         };
-        Cursor c = db.query(TABLE_NAME, projection, null, null, null, null, null);
-        if (c.moveToNext()) {
-            Trip item = new Trip();
-            item.setTrip_id(c.getString(c.getColumnIndex(DBHelperItem._ID)));
-            item.setStart_time(c.getString(c.getColumnIndex(DBHelperItem.COLUMN_NAME_START_TIME)));
-            item.setEnd_time(c.getString(c.getColumnIndex(DBHelperItem.COLUMN_NAME_END_TIME)));
-//            item.setLocations(c.getString(c.getColumnIndex(DBHelperItem.COLUMN_NAME_LOCATIONS)));
-            c.close();
-            return item;
+        Cursor c = db.query(TABLE_NAME_LOC, null, null, null, null, null, null);
+        while (c.moveToNext()) {
+            item.setLatitude(c.getDouble(c.getColumnIndex(DBHelperItem.COLUMN_NAME_LOC_LAT)));
+            item.setLongitude(c.getDouble(c.getColumnIndex(DBHelperItem.COLUMN_NAME_LOC_LONG)));
+            item.setTimestamp(c.getString(c.getColumnIndex(DBHelperItem.COLUMN_NAME_LOC_TIMESTAMP)));
+            item.setAccuracy(c.getDouble(c.getColumnIndex(DBHelperItem.COLUMN_NAME_LOC_ACCURACY)));
+            locations.add(item);
         }
-        return null;
+        c.close();
+        return locations;
     }
 
-    public void addStartTime(String startTime, boolean start) {
-
+    public void addLocation(Locations request) {
         SQLiteDatabase db = getWritableDatabase();
         ContentValues cv = new ContentValues();
 
-        if (start)
-            cv.put(DBHelperItem.COLUMN_NAME_START_TIME, startTime);
+        cv.put(DBHelperItem.COLUMN_NAME_LOC_LAT, request.getLatitude());
+        cv.put(DBHelperItem.COLUMN_NAME_LOC_LONG, request.getLongitude());
+        cv.put(DBHelperItem.COLUMN_NAME_LOC_TIMESTAMP, String.valueOf(Calendar.getInstance().getTime()));
+        cv.put(DBHelperItem.COLUMN_NAME_LOC_ACCURACY, request.getAccuracy());
 
-        else
-            cv.put(DBHelperItem.COLUMN_NAME_END_TIME, startTime);
-
-        db.insert(TABLE_NAME, null, cv);
+        db.insert(TABLE_NAME_LOC, null, cv);
     }
 
-    public void insert(JSONObject jsonObject) {
-        ContentValues values = new ContentValues();
-        SQLiteDatabase db = this.getWritableDatabase();
-        try {
-            values.put(COLUMN_NAME_LOCATIONS, jsonObject.toString());
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        db.insert(TABLE_NAME, null, values);
+    public void deleteAllLocations() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_NAME_LOC, null, null);
     }
 }
