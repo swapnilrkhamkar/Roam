@@ -165,6 +165,7 @@ public class LiveTrackingService extends Service {
             SharedPref.locationUpdates(LiveTrackingService.this, true);
             if (fusedLocationProviderClient != null) {
                 SharedPref.setTripStart(LiveTrackingService.this, String.valueOf(Calendar.getInstance().getTime()), true);
+                dbHelper.addStartTimeTrip(String.valueOf(Calendar.getInstance().getTime()));
                 fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper());
             }
         } catch (SecurityException e) {

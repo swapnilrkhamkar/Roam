@@ -5,7 +5,7 @@ public class Trip {
     private String trip_id;
     private String start_time;
     private String end_time;
-    private Locations locations;
+    private String locations;
 
     public String getStart_time() {
         return start_time;
@@ -23,11 +23,11 @@ public class Trip {
         this.end_time = end_time;
     }
 
-    public Locations getLocations() {
+    public String getLocations() {
         return locations;
     }
 
-    public void setLocations(Locations locations) {
+    public void setLocations(String locations) {
         this.locations = locations;
     }
 

@@ -1,7 +1,6 @@
 package com.assignment.roam;
 
 import android.Manifest;
-import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -15,7 +14,9 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -68,29 +69,32 @@ public class MainActivity extends AppCompatActivity {
                     if (SharedPref.getLocationUpdates(MainActivity.this)) {
                         stopTrackingTrip();
                         SharedPref.setTripStart(MainActivity.this, String.valueOf(Calendar.getInstance().getTime()), false);
+                        dbHelper.updateTrip();
 
                         String startTime = SharedPref.getStartTime(MainActivity.this);
                         String endTime = SharedPref.getEndTime(MainActivity.this);
                         List<Locations> locations = dbHelper.getLocations();
+                        List<Trip> trips = dbHelper.getTrips();
+                        Log.e("TRIP_SIZE", "nknknk " + trips.size());
 
-                        if (startTime != null && endTime != null && locations.size() > 0) {
-
-                            tripId = tripId + 1;
+                        if (trips != null && trips.size() > 0) {
                             JSONObject query_string = new JSONObject();
-                            JSONArray jsonArray = new JSONArray();
-                            query_string.put("trip_id", tripId);
-                            query_string.put("start_time", startTime);
-                            query_string.put("end_time", endTime);
+                            for (Trip trip : trips) {
+                                JSONArray jsonArray = new JSONArray();
+                                query_string.put("trip_id", trip.getTrip_id());
+                                query_string.put("start_time", trip.getStart_time());
+                                query_string.put("end_time", trip.getEnd_time());
 
-                            for (Locations locations1 : locations) {
-                                JSONObject jsonObject = new JSONObject();
-                                jsonObject.put("latitude", locations1.getLatitude());
-                                jsonObject.put("logitude", locations1.getLongitude());
-                                jsonObject.put("timestamp", locations1.getTimestamp());
-                                jsonObject.put("accuracy", locations1.getAccuracy());
-                                jsonArray.put(jsonObject);
+                                for (Locations locations1 : locations) {
+                                    JSONObject jsonObject = new JSONObject();
+                                    jsonObject.put("latitude", locations1.getLatitude());
+                                    jsonObject.put("logitude", locations1.getLongitude());
+                                    jsonObject.put("timestamp", locations1.getTimestamp());
+                                    jsonObject.put("accuracy", locations1.getAccuracy());
+                                    jsonArray.put(jsonObject);
+                                }
+                                query_string.put("locations", jsonArray);
                             }
-                            query_string.put("locations", jsonArray);
 
                             textView.setText(query_string.toString());
                             dbHelper.deleteAllLocations();
@@ -154,6 +158,33 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    private boolean isGpsEnabled() {
+
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        return lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+//        switch (requestCode) {
+//            case RC_LOCATION_PERMISSION:
+//                bindService(new Intent(MainActivity.this, LiveTrackingService.class),
+//                        serviceConnection, Context.BIND_AUTO_CREATE);
+//                break;
+//        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (serviceBound && serviceConnection != null) {
+            unbindService(serviceConnection);
+            serviceBound = false;
+        }
+    }
+
     private boolean checkLocationPermission() {
 //        Log.e("API_LEVEL", "BHUJNUJN " + android.os.Build.VERSION.SDK_INT);
         String[] locationPermissions;
@@ -181,30 +212,23 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    private boolean isGpsEnabled() {
-
-        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
-        return lm.isProviderEnabled(LocationManager.GPS_PROVIDER);
-    }
-
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-//        switch (requestCode) {
-//            case RC_LOCATION_PERMISSION:
-//                bindService(new Intent(MainActivity.this, LiveTrackingService.class),
-//                        serviceConnection, Context.BIND_AUTO_CREATE);
-//                break;
-//        }
-    }
+        if (permissions.length > 0) {
+            if (ActivityCompat.checkSelfPermission(this, permissions[0]) == PackageManager.PERMISSION_GRANTED
+                    && requestCode == RC_LOCATION_PERMISSION) {
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-        if (serviceBound && serviceConnection != null) {
-            unbindService(serviceConnection);
-            serviceBound = false;
+                Toast.makeText(this, "Permission granted!", Toast.LENGTH_SHORT).show();
+
+                if (!serviceBound && liveTrackingService == null) {
+                    startTrackingTrip();
+                }
+            } else {
+                Toast.makeText(this, "Location permission needed to proceed!", Toast.LENGTH_SHORT).show();
+            }
         }
+
     }
 }
